@@ -336,41 +336,16 @@ function getClientSupplierReplyEmailHTML(enquiry: Enquiry, response: SupplierRes
 async function syncClientToGoogleSheets(enquiry: Enquiry, webAppUrl: string) {
   if (!webAppUrl) return;
   try {
-    const itemsToSync = enquiry.items.length > 0 ? enquiry.items : [{ styleNo: enquiry.styleNumber, color: "N/A", quantity: 0, size: "N/A" }];
-    console.log(`[Static Sheet Sync] Initiating ${itemsToSync.length} row direct sync...`);
+    console.log("[Static Sheet Sync] Initiating nested payload direct sync...");
     
-    for (const item of itemsToSync) {
-      const payload = {
-        id: enquiry.id,
-        date: enquiry.date,
-        email: enquiry.email,
-        type: enquiry.type,
-        supplierName: enquiry.supplierName,
-        customerName: enquiry.customerName,
-        styleNumber: item.styleNo || enquiry.styleNumber,
-        description: enquiry.description,
-        color: item.color,
-        quantity: item.quantity,
-        size: item.size,
-        remark: enquiry.remark,
-        routingTab: enquiry.routingTab,
-        status: enquiry.status,
-        attachments: enquiry.attachments.map(a => a.name).join(", "),
-        composition: enquiry.supplierResponse?.composition || "",
-        moq: enquiry.supplierResponse?.moq || "",
-        mcq: enquiry.supplierResponse?.mcq || "",
-        price: enquiry.supplierResponse?.price || "",
-        deliveryTime: enquiry.supplierResponse?.deliveryTime || "",
-        supplierRemark: enquiry.supplierResponse?.remark || ""
-      };
-      
-      await fetch(webAppUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-    }
+    // We send the entire enquiry object to the Google Apps Script. 
+    // The Apps Script handles row splitting, formatting, and cell coordinates mapping perfectly.
+    await fetch(webAppUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(enquiry)
+    });
     console.log("[Static Sheet Sync] Sync successful!");
   } catch (err) {
     console.error("[Static Sheet Sync] Direct fetch error:", err);
@@ -384,8 +359,10 @@ export default function App() {
   // Controls if we show the developer test tools (tabs, stats, outboxes) or hide them entirely.
   const [showAdminConsole, setShowAdminConsole] = useState<boolean>(false);
 
-  // Google Sheets Direct Sync Web App URL
-  const [googleSheetsUrl, setGoogleSheetsUrl] = useState<string>("");
+  // Google Sheets Direct Sync Web App URL with Netlify environment variable support
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState<string>(() => {
+    return localStorage.getItem("soie_sheets_url") || (import.meta.env.VITE_GOOGLE_SHEETS_URL || "");
+  });
   const [isSavingSheetsUrl, setIsSavingSheetsUrl] = useState<boolean>(false);
   const [showSyncWizard, setShowSyncWizard] = useState<boolean>(true);
 
@@ -549,9 +526,9 @@ export default function App() {
       }
       setEmails(currentEmails);
 
-      // Load config sheets URL from local storage
-      const savedUrl = localStorage.getItem("soie_sheets_url");
-      setGoogleSheetsUrl(savedUrl || "");
+      // Load config sheets URL from local storage, with Netlify environment variable preset support!
+      const savedUrl = localStorage.getItem("soie_sheets_url") || (import.meta.env.VITE_GOOGLE_SHEETS_URL || "");
+      setGoogleSheetsUrl(savedUrl);
       setErrorMessage("");
     } finally {
       setLoading(false);

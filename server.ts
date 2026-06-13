@@ -375,50 +375,19 @@ async function syncToGoogleSheets(enquiry: Enquiry) {
       return;
     }
     
-    // If there are no items, we send at least one row with N/A values.
-    // Otherwise, we loop and send one request per item as requested by the user.
-    const itemsToSync = enquiry.items.length > 0 ? enquiry.items : [{ styleNo: enquiry.styleNumber, color: "N/A", quantity: 0, size: "N/A" }];
+    console.log(`Syncing enquiry ${enquiry.id} to Google Sheets as single nested payload...`);
 
-    console.log(`Syncing enquiry ${enquiry.id} to Google Sheets (${itemsToSync.length} rows)...`);
-
-    for (const item of itemsToSync) {
-      const payload = {
-        id: enquiry.id,
-        date: enquiry.date,
-        email: enquiry.email,
-        type: enquiry.type,
-        supplierName: enquiry.supplierName,
-        customerName: enquiry.customerName,
-        styleNumber: item.styleNo || enquiry.styleNumber,
-        description: enquiry.description,
-        color: item.color,
-        quantity: item.quantity,
-        size: item.size,
-        remark: enquiry.remark,
-        routingTab: enquiry.routingTab,
-        status: enquiry.status,
-        attachments: enquiry.attachments.map(a => a.name).join(", "),
-        // Flatten supplier response fields if they exist
-        composition: enquiry.supplierResponse?.composition || "",
-        moq: enquiry.supplierResponse?.moq || "",
-        mcq: enquiry.supplierResponse?.mcq || "",
-        price: enquiry.supplierResponse?.price || "",
-        deliveryTime: enquiry.supplierResponse?.deliveryTime || "",
-        supplierRemark: enquiry.supplierResponse?.remark || ""
-      };
-
-      const response = await fetch(webAppUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        console.error(`HTTP error syncing row! status: ${response.status}`);
-      }
-    }
+    const response = await fetch(webAppUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(enquiry)
+    });
     
-    console.log(`Google Sheets sync completed for enquiry ${enquiry.id}`);
+    if (!response.ok) {
+      console.error(`HTTP error syncing! status: ${response.status}`);
+    } else {
+      console.log(`Google Sheets sync completed for enquiry ${enquiry.id}`);
+    }
   } catch (error) {
     console.error("Failed to sync to Google Sheets:", error);
   }
