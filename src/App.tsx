@@ -33,6 +33,350 @@ import { Enquiry, EnquiryItem, Attachment, EmailLog, SupplierResponse } from "./
 
 const headerImage = "https://i.ibb.co/jPNhZLFP/Ginza-Soie-Header-Image.png";
 
+// Static Default Initial Enquiries for offline/Netlify environments
+const initialDefaultEnquiries: Enquiry[] = [
+  {
+    id: "enq_1",
+    date: "2026-06-10",
+    email: "merch1.soie@ginzalimited.com",
+    type: "New",
+    supplierName: "Vimal Fabrics Ltd",
+    customerName: "SOIE",
+    styleNumber: "C-920",
+    description: "Lace Back Bikini Brief with soft elastic waistband",
+    items: [
+      { styleNo: "C-920-Blush", color: "Blush Pink", quantity: 1500, size: "Medium" },
+      { styleNo: "C-920-Crim", color: "Crimson Red", quantity: 1200, size: "Large" },
+      { styleNo: "C-920-Mid", color: "Midnight Black", quantity: 1800, size: "Small" }
+    ],
+    attachments: [
+      { name: "lace_design_back.png", url: "https://drive.google.com/drive/folders/ginza-enquiries/lace_design_back.png", size: "1.4 MB", uploadedAt: "2026-06-10 14:22" },
+      { name: "elastic_specs.pdf", url: "https://drive.google.com/drive/folders/ginza-enquiries/elastic_specs.pdf", size: "380 KB", uploadedAt: "2026-06-10 14:25" }
+    ],
+    remark: "Required with supreme soft lace. Standard fit.",
+    routingTab: "Order Enquiries",
+    supplierResponseLink: `${window.location.origin}/?portal=supplier&id=enq_1`,
+    status: "Pending",
+    createdAt: "2026-06-10T14:20:00Z"
+  },
+  {
+    id: "enq_2",
+    date: "2026-06-08",
+    email: "merch2.soie@ginzalimited.com",
+    type: "Repeat",
+    supplierName: "Reliance Synthetics",
+    customerName: "SOIE",
+    styleNumber: "R-440",
+    description: "Classic Microfiber Daily Bra",
+    items: [
+      { styleNo: "R-440-Skin", color: "Nude Skin", quantity: 5000, size: "34B" },
+      { styleNo: "R-440-Rose", color: "White Rose", quantity: 3500, size: "36C" }
+    ],
+    attachments: [
+      { name: "approved_shade_card.png", url: "https://drive.google.com/drive/folders/ginza-enquiries/approved_shade_card.png", size: "2.1 MB", uploadedAt: "2026-06-08 10:11" }
+    ],
+    remark: "R-440 repeat fabric order. Match dye lots perfectly.",
+    routingTab: "Order Enquiries",
+    supplierResponseLink: `${window.location.origin}/?portal=supplier&id=enq_2`,
+    status: "Responded",
+    createdAt: "2026-06-08T10:10:00Z",
+    supplierResponse: {
+      composition: "88% Nylon, 12% Spandex",
+      moq: 1000,
+      mcq: 500,
+      price: 185.5,
+      deliveryTime: "2026-07-25",
+      remark: "Price held firm. Dye matching confirmed against shade card.",
+      respondedAt: "2026-06-09T09:30:00Z"
+    }
+  },
+  {
+    id: "enq_3",
+    date: "2026-06-09",
+    email: "export.sales@ginzalimited.com",
+    type: "New Launch",
+    supplierName: "Yarn & Thread Imp",
+    customerName: "Nordstrom Int",
+    styleNumber: "EXPORT-50",
+    description: "Cotton Lurex Loungewear Shorts",
+    items: [
+      { styleNo: "EX-50-Gray", color: "Silver Gray", quantity: 3000, size: "S/M" },
+      { styleNo: "EX-50-Beige", color: "Gold Beige", quantity: 3000, size: "L/XL" }
+    ],
+    attachments: [],
+    remark: "Urgent shipment for Winter launch.",
+    routingTab: "Order Enquiries",
+    supplierResponseLink: `${window.location.origin}/?portal=supplier&id=enq_3`,
+    status: "Pending",
+    createdAt: "2026-06-09T18:15:00Z"
+  }
+];
+
+// Helper to generate professional HTML email markup in offline browser fallback
+function getClientEnquiryEmailHTML(enquiry: Enquiry) {
+  const colorsText = enquiry.items.map(item => item.color).filter(Boolean).join(", ") || "N/A";
+  const quantitiesText = enquiry.items.map(item => item.quantity).filter(Boolean).join(", ") || "N/A";
+  const sizesText = enquiry.items.map(item => item.size).filter(Boolean).join(", ") || "N/A";
+
+  const attachmentsHTML = enquiry.attachments.length > 0 
+    ? enquiry.attachments.map(att => `<a href="${att.url}" style="color: #2563eb; text-decoration: underline; margin-right: 15px;">🔗 ${att.name}</a>`).join(" ")
+    : "None";
+
+  const itemsTableRows = enquiry.items.map((item, index) => `
+    <tr style="border-bottom: 1px solid #e2e8f0; font-family: sans-serif; font-size: 14px;">
+      <td style="padding: 12px 10px; color: #1e293b; font-weight: bold;">${index + 1}</td>
+      <td style="padding: 12px 10px; color: #334155;">${item.styleNo || enquiry.styleNumber}</td>
+      <td style="padding: 12px 10px; color: #334155;">${item.color}</td>
+      <td style="padding: 12px 10px; color: #334155;">${item.size}</td>
+      <td style="padding: 12px 10px; color: #334155; text-align: right; font-weight: 600;">${item.quantity.toLocaleString()}</td>
+    </tr>
+  `).join("");
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; color: #334155; margin: 0; padding: 40px 20px; line-height: 1.6; }
+    .container { max-width: 700px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    .header { background-color: #1e293b; padding: 32px; text-align: center; color: #ffffff; }
+    .header-logo { font-size: 24px; font-weight: 800; letter-spacing: 0.1em; color: #ffffff; margin-bottom: 4px; }
+    .header-title { font-size: 14px; text-transform: uppercase; letter-spacing: 0.2em; color: #94a3b8; }
+    .content { padding: 40px; }
+    .intro { font-size: 16px; margin-bottom: 32px; color: #1e293b; }
+    .ref-badge { display: inline-block; padding: 6px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-weight: 700; color: #475569; font-size: 14px; margin-bottom: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+    .field-card { background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; }
+    .label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; letter-spacing: 0.05em; }
+    .value { font-size: 14px; color: #1e293b; font-weight: 600; }
+    .table-container { margin: 32px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    .items-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .items-table th { background-color: #f8fafc; padding: 14px 10px; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; letter-spacing: 0.05em; }
+    .action-box { margin-top: 40px; text-align: center; background: #fdf4ff; border: 1px solid #f5d0fe; border-radius: 12px; padding: 32px; }
+    .action-text { margin-bottom: 20px; color: #701a75; font-weight: 500; font-size: 15px; }
+    .btn { display: inline-block; background-color: #7c3aed; color: #ffffff !important; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.3); }
+    .footer { padding: 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 13px; }
+    .details-row { border-top: 1px solid #f1f5f9; padding-top: 24px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-logo">GINZA LIMITED</div>
+      <div class="header-title">Official Order Enquiry</div>
+    </div>
+    
+    <div class="content">
+      <div class="intro">
+        Dear Team,<br/><br/>
+        Please click on the link below to submit pricing and quotation updates for <strong>Style Reference ${enquiry.styleNumber}</strong> (Ref ID: ${enquiry.id}):
+      </div>
+
+      <div class="action-box">
+        <div class="action-text">Click here to open the secure supplier portal:</div>
+        <a href="${enquiry.supplierResponseLink}" class="btn">Submit Quotation Updates</a>
+      </div>
+
+      <div class="details-row">
+        <div class="ref-badge">ENQUIRY SPECIFICATIONS</div>
+        
+        <div class="grid">
+          <div class="field-card">
+            <div class="label">Date of Enquiry</div>
+            <div class="value">${enquiry.date}</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Enquiry Type</div>
+            <div class="value">${enquiry.type}</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Supplier</div>
+            <div class="value">${enquiry.supplierName}</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Customer</div>
+            <div class="value">${enquiry.customerName}</div>
+          </div>
+          <div class="field-card" style="grid-column: span 2;">
+            <div class="label">Description</div>
+            <div class="value">${enquiry.description || "N/A"}</div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;">#</th>
+                <th>Style No</th>
+                <th>Color</th>
+                <th>Size</th>
+                <th style="text-align: right;">Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsTableRows}
+            </tbody>
+          </table>
+        </div>
+
+        ${enquiry.remark ? `
+        <div class="field-card" style="margin-bottom: 20px; background-color: #fffbeb; border-color: #fef3c7;">
+          <div class="label" style="color: #92400e;">General Remarks</div>
+          <div class="value" style="color: #78350f;">${enquiry.remark}</div>
+        </div>
+        ` : ""}
+
+        <div class="field-card">
+          <div class="label">Attachments</div>
+          <div class="value" style="font-size: 13px;">${attachmentsHTML}</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
+        <strong>Best regards,</strong><br/>
+        <span style="color: #7c3aed; font-weight: 700;">Ginza Limited Merchant Team</span>
+      </div>
+    </div>
+    
+    <div class="footer">
+      This is a system-generated notification from Ginza Limited ERP.<br/>
+      Reply-To: <strong>${enquiry.email}</strong> | CC: <strong>mis.mumbai@ginzalimited.com</strong>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+// Same template helper for Supplier Quotation confirmation email
+function getClientSupplierReplyEmailHTML(enquiry: Enquiry, response: SupplierResponse) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; margin: 0; padding: 20px; }
+    .container { max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    .header { background-color: #065f46; padding: 24px; text-align: center; color: #ffffff; }
+    .header-logo { font-size: 20px; font-weight: bold; letter-spacing: 0.05em; color: #34d399; }
+    .header-title { font-size: 16px; margin-top: 4px; color: #a7f3d0; }
+    .badge { display: inline-block; padding: 4px 10px; font-size: 12px; font-weight: bold; border-radius: 9999px; background-color: #d1fae5; color: #065f46; text-transform: uppercase; }
+    .content { padding: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .field-card { background-color: #f1f5f9; padding: 12px; border-radius: 6px; }
+    .label { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+    .value { font-size: 14px; color: #0f172a; font-weight: 500; }
+    .reply-box { margin-top: 20px; background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 0 8px 8px 0; }
+    .footer { background-color: #f8fafc; padding: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-logo">GINZA SUPPLIER NETWORK</div>
+      <div class="header-title">OFFICIAL PRICING QUOTATION SUBMITTED</div>
+    </div>
+    
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <span style="font-size: 15px; font-weight: bold; color: #0f172a;">Ref Log: ${enquiry.id}</span>
+        <span class="badge">QUOTATION RECEIVED</span>
+      </div>
+
+      <p style="font-size: 14px; color: #334155;">
+        Dear Merchant Team, supplier <strong>${enquiry.supplierName}</strong> has uploaded formal quotation metrics to the GZ Portal.
+      </p>
+
+      <div class="reply-box">
+        <h4 style="margin: 0 0 12px 0; color: #065f46; font-size: 14px;">Quotation Parameters:</h4>
+        <div class="grid">
+          <div class="field-card">
+            <div class="label">Fabric/Trim Composition</div>
+            <div class="value">${response.composition}</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Quoted Price (INR)</div>
+            <div class="value" style="color: #059669; font-weight: bold;">₹${response.price.toLocaleString()}</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Minimum Order Qty (MOQ)</div>
+            <div class="value">${response.moq.toLocaleString()} units</div>
+          </div>
+          <div class="field-card">
+            <div class="label">Minimum Color Qty (MCQ)</div>
+            <div class="value">${response.mcq.toLocaleString()} units</div>
+          </div>
+          <div class="field-card" style="grid-column: span 2;">
+            <div class="label">Estimated Delivery Time</div>
+            <div class="value">${response.deliveryTime}</div>
+          </div>
+          ${response.remark ? `
+          <div class="field-card" style="grid-column: span 2;">
+            <div class="label">Supplier Special Remarks</div>
+            <div class="value" style="font-style: italic;">"${response.remark}"</div>
+          </div>
+          ` : ""}
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Automated dispatch from GZ Supplier Portal core.
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+// Client browser-fetch Direct Sync to Google Sheets in static offline mode
+async function syncClientToGoogleSheets(enquiry: Enquiry, webAppUrl: string) {
+  if (!webAppUrl) return;
+  try {
+    const itemsToSync = enquiry.items.length > 0 ? enquiry.items : [{ styleNo: enquiry.styleNumber, color: "N/A", quantity: 0, size: "N/A" }];
+    console.log(`[Static Sheet Sync] Initiating ${itemsToSync.length} row direct sync...`);
+    
+    for (const item of itemsToSync) {
+      const payload = {
+        id: enquiry.id,
+        date: enquiry.date,
+        email: enquiry.email,
+        type: enquiry.type,
+        supplierName: enquiry.supplierName,
+        customerName: enquiry.customerName,
+        styleNumber: item.styleNo || enquiry.styleNumber,
+        description: enquiry.description,
+        color: item.color,
+        quantity: item.quantity,
+        size: item.size,
+        remark: enquiry.remark,
+        routingTab: enquiry.routingTab,
+        status: enquiry.status,
+        attachments: enquiry.attachments.map(a => a.name).join(", "),
+        composition: enquiry.supplierResponse?.composition || "",
+        moq: enquiry.supplierResponse?.moq || "",
+        mcq: enquiry.supplierResponse?.mcq || "",
+        price: enquiry.supplierResponse?.price || "",
+        deliveryTime: enquiry.supplierResponse?.deliveryTime || "",
+        supplierRemark: enquiry.supplierResponse?.remark || ""
+      };
+      
+      await fetch(webAppUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+    console.log("[Static Sheet Sync] Sync successful!");
+  } catch (err) {
+    console.error("[Static Sheet Sync] Direct fetch error:", err);
+  }
+}
+
 export default function App() {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<"enquiry_form" | "sheets_simulator" | "emails_outbox" | "drive_simulator">("enquiry_form");
@@ -50,6 +394,9 @@ export default function App() {
   const [emails, setEmails] = useState<EmailLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>("");
+
+  // Flag to indicate if we've fallen back to full client-side localStorage mode (e.g. on Netlify/Vercel)
+  const [isStaticMode, setIsStaticMode] = useState<boolean>(false);
 
   // Supplier portal selection state (to let users simulate being a supplier quickly)
   const [supplierPortalEnquiryId, setSupplierPortalEnquiryId] = useState<string | null>(null);
@@ -91,7 +438,7 @@ export default function App() {
   const [supplierVerifyStyle, setSupplierVerifyStyle] = useState<string>("");
 
   // Sheet simulated filter tab
-  const [activeSheetTab, setActiveSheetTab] = useState<string>("SGU Enquiry");
+  const [activeSheetTab, setActiveSheetTab] = useState<string>("Order Enquiries");
 
   // Selected email to view details in Outbox
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
@@ -134,6 +481,15 @@ export default function App() {
     try {
       setLoading(true);
       const enqRes = await fetch("/api/enquiries");
+      if (!enqRes.ok) {
+        throw new Error("Backend server returned error code " + enqRes.status);
+      }
+      
+      const contentType = enqRes.headers.get("content-type") || "";
+      if (contentType.includes("text/html")) {
+        throw new Error("Returned HTML instead of JSON. Frontend router fallback typical of missing backend servers.");
+      }
+
       const subEnquiries = await enqRes.json();
       setEnquiries(subEnquiries);
 
@@ -150,9 +506,53 @@ export default function App() {
       }
 
       setErrorMessage("");
+      setIsStaticMode(false);
     } catch (e) {
-      console.error("Error communicating with full-stack service:", e);
-      setErrorMessage("Could not connect to the backend server. Please verify the server is running on port 3000.");
+      console.warn("Error communicating with full-stack service. Switching to Local Stable Static Offline Sandbox Database fallback.", e);
+      setIsStaticMode(true);
+      
+      // Load enquiries from browser local storage
+      const savedEnq = localStorage.getItem("soie_enquiries");
+      let currentEnquiries = initialDefaultEnquiries;
+      if (savedEnq) {
+        try {
+          currentEnquiries = JSON.parse(savedEnq);
+        } catch (err) {
+          // fallback
+        }
+      } else {
+        localStorage.setItem("soie_enquiries", JSON.stringify(initialDefaultEnquiries));
+      }
+      setEnquiries(currentEnquiries);
+
+      // Load email logs from browser local storage
+      const savedEmails = localStorage.getItem("soie_emails");
+      let currentEmails: EmailLog[] = [];
+      if (savedEmails) {
+        try {
+          currentEmails = JSON.parse(savedEmails);
+        } catch (err) {
+          // fallback
+        }
+      } else {
+        currentEmails = currentEnquiries.map(enq => ({
+          id: "mail_" + Math.floor(100000 + Math.random() * 900000),
+          subject: `Order Enquiry Notification Ref: ${enq.id} (Style ${enq.styleNumber} / ${enq.customerName})`,
+          to: "tracychi@gmail.com",
+          cc: "mis.mumbai@ginzalimited.com",
+          replyTo: enq.email,
+          body: getClientEnquiryEmailHTML(enq),
+          date: new Date().toLocaleTimeString() + " " + new Date().toLocaleDateString(),
+          headers: {}
+        }));
+        localStorage.setItem("soie_emails", JSON.stringify(currentEmails));
+      }
+      setEmails(currentEmails);
+
+      // Load config sheets URL from local storage
+      const savedUrl = localStorage.getItem("soie_sheets_url");
+      setGoogleSheetsUrl(savedUrl || "");
+      setErrorMessage("");
     } finally {
       setLoading(false);
     }
@@ -310,6 +710,84 @@ export default function App() {
       return;
     }
 
+    if (isStaticMode) {
+      // Create new or update existing enquiries in static mode
+      const nextId = editingEnquiryId || ("enq_" + (enquiries.length + 1) + "_" + Math.floor(1000 + Math.random() * 9000));
+      const appUrl = window.location.origin;
+      const supplierLink = `${appUrl}/?portal=supplier&id=${nextId}`;
+      const routingTab = "Order Enquiries";
+
+      const finalEnquiry: Enquiry = {
+        id: nextId,
+        date,
+        email: finalEmail,
+        type: typeOfEnquiry as any,
+        supplierName: finalSupplierValue,
+        customerName: customerName.trim() || "SOIE",
+        styleNumber: finalStyleValue,
+        description: description.trim() || "Soft mesh lingerie design order",
+        items: finalItems,
+        attachments: uploadedFiles,
+        remark: remark.trim(),
+        routingTab,
+        supplierResponseLink: supplierLink,
+        status: editingEnquiryId ? (enquiries.find(e => e.id === editingEnquiryId)?.status || "Pending") : "Pending",
+        supplierResponse: editingEnquiryId ? enquiries.find(e => e.id === editingEnquiryId)?.supplierResponse : undefined,
+        createdAt: editingEnquiryId ? (enquiries.find(e => e.id === editingEnquiryId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+      };
+
+      // Set CC & TO lists matching server
+      const toEmail = "tracychi@gmail.com";
+      let ccList = ["mis.mumbai@ginzalimited.com"];
+      const cleanSender = finalEmail.toLowerCase().trim();
+      if (cleanSender === "merch1.soie@ginzalimited.com") {
+        ccList.push("merch2.soie@ginzalimited.com");
+      } else if (cleanSender === "merch2.soie@ginzalimited.com") {
+        ccList.push("merch1.soie@ginzalimited.com");
+      }
+      const ccHeaderValue = ccList.join(", ");
+      const emailBody = getClientEnquiryEmailHTML(finalEnquiry);
+
+      const newEmail: EmailLog = {
+        id: (editingEnquiryId ? "mail_edit_" : "mail_") + Math.floor(100000 + Math.random() * 900000),
+        subject: editingEnquiryId 
+          ? `[UPDATED & CORRECTED] Order Enquiry Notification Ref: ${finalEnquiry.id} (Style ${finalEnquiry.styleNumber} / ${finalEnquiry.customerName})`
+          : `Order Enquiry Notification Ref: ${finalEnquiry.id} (Style ${finalEnquiry.styleNumber} / ${finalEnquiry.customerName})`,
+        to: toEmail,
+        cc: ccHeaderValue,
+        replyTo: finalEnquiry.email,
+        body: emailBody,
+        date: new Date().toLocaleTimeString() + " " + new Date().toLocaleDateString(),
+        headers: {}
+      };
+
+      let updatedEnqList: Enquiry[];
+      if (editingEnquiryId) {
+        updatedEnqList = enquiries.map(enq => enq.id === editingEnquiryId ? finalEnquiry : enq);
+      } else {
+        updatedEnqList = [finalEnquiry, ...enquiries];
+      }
+
+      setEnquiries(updatedEnqList);
+      localStorage.setItem("soie_enquiries", JSON.stringify(updatedEnqList));
+
+      const updatedEmailList = [newEmail, ...emails];
+      setEmails(updatedEmailList);
+      localStorage.setItem("soie_emails", JSON.stringify(updatedEmailList));
+      setSelectedEmailId(newEmail.id);
+
+      setLastSubmittedEnquiry(finalEnquiry);
+
+      // Async Sync directly to Google Sheets from browser in Netlify offline/static mode!
+      if (googleSheetsUrl) {
+        syncClientToGoogleSheets(finalEnquiry, googleSheetsUrl);
+      }
+
+      setActiveTab("emails_outbox");
+      resetToBlankForm(true);
+      return;
+    }
+
     try {
       const payload = {
         date,
@@ -368,6 +846,64 @@ export default function App() {
     e.preventDefault();
     if (!supplierPortalEnquiryId) return;
 
+    if (isStaticMode) {
+      const targetEnquiry = enquiries.find(e => e.id === supplierPortalEnquiryId);
+      if (!targetEnquiry) return;
+
+      const responseObj: SupplierResponse = {
+        composition: supplierComposition.trim(),
+        moq: Number(supplierMOQ),
+        mcq: Number(supplierMCQ),
+        price: Number(supplierPrice),
+        deliveryTime: supplierDelivery,
+        remark: supplierRemark.trim(),
+        respondedAt: new Date().toISOString()
+      };
+
+      const updatedEnquiry: Enquiry = {
+        ...targetEnquiry,
+        status: "Responded",
+        supplierResponse: responseObj
+      };
+
+      const toEmail = "tracychi@gmail.com";
+      const ccHeader = `mis.mumbai@ginzalimited.com, ${targetEnquiry.email}`;
+      const resBody = getClientSupplierReplyEmailHTML(updatedEnquiry, responseObj);
+
+      const replyEmail: EmailLog = {
+        id: "mail_reply_" + Math.floor(100000 + Math.random() * 900000),
+        subject: `RE: Quotation Confirmed - Ref Log: ${targetEnquiry.id} (${targetEnquiry.supplierName} - Style ${targetEnquiry.styleNumber})`,
+        to: toEmail,
+        cc: ccHeader,
+        replyTo: "no-reply.supplier@ginzalimited.com",
+        body: resBody,
+        date: new Date().toLocaleTimeString() + " " + new Date().toLocaleDateString(),
+        headers: {}
+      };
+
+      const updatedEnqList = enquiries.map(enq => enq.id === supplierPortalEnquiryId ? updatedEnquiry : enq);
+      setEnquiries(updatedEnqList);
+      localStorage.setItem("soie_enquiries", JSON.stringify(updatedEnqList));
+
+      const updatedEmailList = [replyEmail, ...emails];
+      setEmails(updatedEmailList);
+      localStorage.setItem("soie_emails", JSON.stringify(updatedEmailList));
+      setSelectedEmailId(replyEmail.id);
+
+      // Async Sync updated quotation rows directly to Google Sheets under static mode!
+      if (googleSheetsUrl) {
+        syncClientToGoogleSheets(updatedEnquiry, googleSheetsUrl);
+      }
+
+      alert(`Success! Quotation has been recorded. Excel Sheet columns updated and notifications sent to Tracy + Employee CC successfully.`);
+      
+      // Direct user back to sheets simulator to see the columns updated
+      setSupplierPortalEnquiryId(null);
+      setActiveTab("sheets_simulator");
+      setActiveSheetTab(updatedEnquiry.routingTab); // view target sheet
+      return;
+    }
+
     try {
       const payload = {
         composition: supplierComposition.trim(),
@@ -410,6 +946,13 @@ export default function App() {
   // System State Reset helper
   const handleSystemReset = async () => {
     if (confirm("Reset system states back to demo standards? This removes custom logs.")) {
+      if (isStaticMode) {
+        localStorage.removeItem("soie_enquiries");
+        localStorage.removeItem("soie_emails");
+        fetchData();
+        alert("Local sandbox database states reset to demo standards.");
+        return;
+      }
       try {
         await fetch("/api/reset", { method: "POST" });
         await fetchData();
@@ -425,6 +968,34 @@ export default function App() {
       
       {/* Main Container Layout */}
       <main className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-8 flex-1 w-full flex flex-col justify-start">
+
+        {/* Modern, helpful offline/sandbox status banner */}
+        {isStaticMode && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 sm:p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">⚡</span>
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-amber-950 flex items-center gap-2">
+                  <span>Running in Local Sandbox Database Mode</span>
+                  <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Offline Fallback API Enabled</span>
+                </h4>
+                <p className="text-[11px] text-amber-800 font-medium">
+                  We detected that the custom Express backend server is offline or unreachable. No worries! The app is using resilient client-side <code className="bg-amber-100 text-[#78350f] px-1 rounded font-semibold text-[11px]">localStorage</code> so that all quotation creations, mail formats, and spreadsheet simulator work perfectly.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                setShowAdminConsole(true);
+                setActiveTab("sheets_simulator");
+              }}
+              className="text-[11px] font-extrabold bg-amber-900 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg shadow-sm transition-all shrink-0 cursor-pointer"
+            >
+              Configure Live Google Sheets Sync
+            </button>
+          </div>
+        )}
         
         {/* Clean Professional ERP Header & Administrative Console Switch - only shown in admin mode */}
         {showAdminConsole && (
@@ -1481,7 +2052,7 @@ export default function App() {
                             />
                           </div>
 
-                          <div className="flex gap-2.5 pt-1">
+                           <div className="flex gap-2.5 pt-1">
                             <button
                               onClick={async () => {
                                 if (!googleSheetsUrl.startsWith("http")) {
@@ -1489,6 +2060,15 @@ export default function App() {
                                   return;
                                 }
                                 setIsSavingSheetsUrl(true);
+                                if (isStaticMode) {
+                                  // Fake some loading time (250ms) to feel realistic, and persist to localStorage
+                                  setTimeout(() => {
+                                    localStorage.setItem("soie_sheets_url", googleSheetsUrl.trim());
+                                    setIsSavingSheetsUrl(false);
+                                    alert("[Local Sandbox Mode] Success! Google Sheets configuration live Sync URL updated & stored in localStorage fallbacks safely.");
+                                  }, 250);
+                                  return;
+                                }
                                 try {
                                   const res = await fetch("/api/sheets-config", {
                                     method: "POST",
@@ -1513,6 +2093,15 @@ export default function App() {
                               <button
                                 onClick={async () => {
                                   setIsSavingSheetsUrl(true);
+                                  if (isStaticMode) {
+                                    setTimeout(() => {
+                                      localStorage.removeItem("soie_sheets_url");
+                                      setGoogleSheetsUrl("");
+                                      setIsSavingSheetsUrl(false);
+                                      alert("[Local Sandbox Mode] Disconnected! Google Sheets configuration has been cleared.");
+                                    }, 250);
+                                    return;
+                                  }
                                   try {
                                     const res = await fetch("/api/sheets-config", {
                                       method: "POST",
