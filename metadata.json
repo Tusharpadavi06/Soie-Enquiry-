@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Ginza Order Enquiry \u0026 Supplier Portal",
+  "description": "Ginza Limited order tracking portal. Allows order enquiries with dynamic items, automatic CC/Reply-To/To routing logic, and supplier quotation generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
