@@ -1242,7 +1242,7 @@ export default function App() {
                       {/* Verification check input card */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-verify">
-                          Verify Style Number <span className="text-[#d93025]">*</span>
+                          Style Number <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3 font-normal">Please verify the style reference code you are quoting for (e.g. <b>{target.styleNumber}</b>).</p>
                         <input
@@ -1259,7 +1259,7 @@ export default function App() {
                       {/* Composition Input Card */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-comp">
-                          Fabric Composition / Materials Description <span className="text-[#d93025]">*</span>
+                          Composition <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3">Specify material details (e.g., 90% Polyamide, 10% Elastane).</p>
                         <input
@@ -1276,7 +1276,7 @@ export default function App() {
                       {/* MOQ Card */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-moq">
-                          Minimum Order Quantity (MOQ) <span className="text-[#d93025]">*</span>
+                          MOQ <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3">Minimum quantity required to accept any standard order.</p>
                         <input
@@ -1294,7 +1294,7 @@ export default function App() {
                       {/* MCQ Card */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-mcq">
-                          Minimum Color Quantity (MCQ) <span className="text-[#d93025]">*</span>
+                          MCQ <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3 font-normal">Minimum manufacturing volume required per styled color lot.</p>
                         <input
@@ -1312,7 +1312,7 @@ export default function App() {
                       {/* Price in INR Card */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-price">
-                          Quoted Unit Price (INR per piece) <span className="text-[#d93025]">*</span>
+                          Price (INR) <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3">Please specify unit bulk rate quotation pricing.</p>
                         <div className="flex items-center gap-1 max-w-xs border-b border-[#dadce0] hover:border-[#b0b3b8] focus-within:border-b-2 focus-within:border-[#0f9d58]">
@@ -1334,7 +1334,7 @@ export default function App() {
                       {/* Expected delivery dates */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-deliv">
-                          Offered Delivery Completion Date <span className="text-[#d93025]">*</span>
+                          Delivery  Date <span className="text-[#d93025]">*</span>
                         </label>
                         <p className="text-xs text-[#70757a] mb-3">Estimated date when the bulk manufacturing can ship.</p>
                         <input
@@ -1350,7 +1350,7 @@ export default function App() {
                       {/* Optional vendor remarks text block */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
                         <label className="block text-base font-semibold text-[#202124] mb-1" htmlFor="sub-remark">
-                          Supplier Remarks / Fabric Certifications
+                          Remarks
                         </label>
                         <p className="text-xs text-[#70757a] mb-3 font-normal">Write additional specifications, terms, or bulk parameters. (Optional)</p>
                         <textarea
@@ -2393,13 +2393,14 @@ export default function App() {
         "MCQ / MCQ Height",
         "MOQ",
         "Quoted Price",
-        "Delivery Date / Supplier Remarks",
-        "Supplier Response Portal Link",
+        "Delivery Date",
         "Status",
+        "Supplier Response Portal Link",
+        "Supplier Remarks",
         "Ref ID"
       ]);
       // Format headers
-      sheet.getRange(1, 1, 1, 20).setFontWeight("bold").setBackground("#d1e7dd");
+      sheet.getRange(1, 1, 1, 21).setFontWeight("bold").setBackground("#d1e7dd");
     }
     
     // Find if the Ref ID already exists to prevent duplicate rows (enables live editing!)
@@ -2409,7 +2410,7 @@ export default function App() {
     var existingNumRows = 1;
     
     // Find the Ref ID column index dynamically by scanning the header row (row 1)
-    var refColIdx = 19; // Default Col T is the 20th column (index 19)
+    var refColIdx = 20; // Default Col U is the 21st column (index 20)
     if (data.length > 0) {
       for (var col = 0; col < data[0].length; col++) {
         if (data[0][col] === "Ref ID" || data[0][col] === "ID" || data[0][col] === "Reference ID") {
@@ -2808,16 +2809,18 @@ export default function App() {
                               <div className="bg-white/90 p-3 rounded-lg border border-emerald-100 text-xs shadow-sm">
                                 <span className="font-bold text-emerald-900 text-[11px] block border-b border-emerald-100 pb-1 mb-1.5">💡 Supplier Quotation & Response Columns</span>
                                 <p className="text-[10px] text-emerald-700 mb-1 leading-normal italic font-medium">
-                                  Automatically populated after the vendor clicks Col R and submits the quote:
+                                  Automatically populated after the vendor clicks Col S and submits the quote:
                                 </p>
                                 <ul className="space-y-1 text-slate-600 text-[11px] list-disc list-inside">
                                   <li><b>Col M:</b> Composition <span className="text-slate-400">| fabric/materials %</span></li>
-                                  <li><b>Col N:</b> MCQ / MCQ Height <span className="text-slate-400">| Min Color Qty</span></li>
+                                  <li><b>Col N:</b> MCQ <span className="text-slate-400">| Min Color Qty</span></li>
                                   <li><b>Col O:</b> MOQ <span className="text-slate-400">| Minimum Order Quantity</span></li>
-                                  <li><b>Col P:</b> Quoted Price <span className="text-slate-400">| Price in INR/pieces</span></li>
-                                  <li><b>Col Q:</b> Delivery Date / Supplier Remarks</li>
-                                  <li><b>Col R:</b> Supplier Response Portal Link <span className="text-slate-400">| Secure URL</span></li>
-                                  <li><b>Col S:</b> Status <span className="text-slate-400">| Pending / Responded</span></li>
+                                  <li><b>Col P:</b> Price (INR) <span className="text-slate-400">| Price in INR per piece</span></li>
+                                  <li><b>Col Q:</b> Delivery Date <span className="text-slate-400">| offered delivery schedule</span></li>
+                                  <li><b>Col R:</b> Status <span className="text-slate-400">| Pending / Responded status</span></li>
+                                  <li><b>Col S:</b> Supplier Response Portal Link <span className="text-slate-400">| Secure Response Form</span></li>
+                                  <li><b>Col T:</b> Supplier Remarks <span className="text-slate-400">| notes or specifications</span></li>
+                                  <li><b>Col U:</b> Ref ID <span className="text-slate-400">| ERP tracking code</span></li>
                                 </ul>
                               </div>
                             </div>
@@ -2857,10 +2860,11 @@ export default function App() {
                               <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50">Col N: MCQ</th>
                               <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50">Col O: MOQ</th>
                               <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50">Col P: Price (INR)</th>
-                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50">Col Q: Deliv / Remark</th>
-                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-emerald-50/60 text-emerald-950">Col R: Supplier Response Portal Link</th>
-                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider text-center">Col S: Status</th>
-                              <th className="p-3 border-r-0 text-[10px] uppercase font-bold tracking-wider text-slate-600 font-mono">Col T: Ref ID</th>
+                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50">Col Q: Delivery Date</th>
+                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-slate-100/50 text-center">Col R: Status</th>
+                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider bg-emerald-50/60 text-emerald-950">Col S: Supplier Response Portal Link</th>
+                              <th className="p-3 border-r border-slate-200 text-[10px] uppercase font-bold tracking-wider">Col T: Supplier Remarks</th>
+                              <th className="p-3 border-r-0 text-[10px] uppercase font-bold tracking-wider text-slate-600 font-mono">Col U: Ref ID</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
@@ -2988,42 +2992,46 @@ export default function App() {
                                                   </td>
 
                                                   {/* Supplier Response: Composition (Col M) */}
-                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10 text-slate-700 font-medium">
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10 text-slate-700 font-medium font-sans">
                                                     {enq.supplierResponse?.composition || <span className="text-slate-400 italic">-</span>}
                                                   </td>
 
                                                   {/* Supplier Response: MCQ (Col N) */}
-                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-right font-mono align-middle bg-slate-50/10">
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-right font-mono align-middle bg-slate-50/10 font-bold">
                                                     {enq.supplierResponse ? enq.supplierResponse.mcq.toLocaleString() : "-"}
                                                   </td>
 
                                                   {/* Supplier Response: MOQ (Col O) */}
-                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-right font-mono align-middle bg-slate-50/10">
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-right font-mono align-middle bg-slate-50/10 font-bold">
                                                     {enq.supplierResponse ? enq.supplierResponse.moq.toLocaleString() : "-"}
                                                   </td>
 
                                                   {/* Supplier Response: Quoted Price (Col P) */}
                                                   <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10">
                                                     {enq.supplierResponse ? (
-                                                      <span className="font-extrabold text-emerald-700">₹ {enq.supplierResponse.price.toFixed(2)}</span>
+                                                      <span className="font-extrabold text-emerald-700 font-mono">₹ {enq.supplierResponse.price.toFixed(2)}</span>
                                                     ) : (
                                                       <span className="text-slate-400 italic">-</span>
                                                     )}
                                                   </td>
 
-                                                  {/* Supplier Response: Delivery Time & Supplier Remarks (Col Q) */}
-                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10 truncate max-w-[140px] text-[11px]" title={enq.supplierResponse?.remark}>
-                                                    {enq.supplierResponse ? (
-                                                      <div>
-                                                        <span className="font-bold text-slate-800">{enq.supplierResponse.deliveryTime || "N/A"}</span>
-                                                        {enq.supplierResponse.remark && <div className="text-[10px] text-slate-500 italic truncate mt-0.5">{enq.supplierResponse.remark}</div>}
-                                                      </div>
-                                                    ) : (
-                                                      <span className="text-slate-400 italic">-</span>
-                                                    )}
+                                                  {/* Supplier Response: Delivery Date (Col Q) */}
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10 font-bold text-slate-805 text-[11px] font-mono">
+                                                    {enq.supplierResponse ? (enq.supplierResponse.deliveryTime || "N/A") : <span className="text-slate-400 italic">-</span>}
                                                   </td>
 
-                                                  {/* Supplier Response Link / Setup Copy buttons (Col R) */}
+                                                  {/* Status Indicator (Col R) */}
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-center align-middle select-none bg-slate-50/10">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                                                      enq.status === "Responded"
+                                                        ? "bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-250 shadow-3xs"
+                                                        : "bg-amber-100 text-amber-805 border border-amber-250"
+                                                    }`}>
+                                                      {enq.status}
+                                                    </span>
+                                                  </td>
+
+                                                  {/* Supplier Response Link / Setup Copy buttons (Col S) */}
                                                   <td rowSpan={numItems} className="p-3 border-r border-slate-200 bg-emerald-50/30 font-semibold align-middle">
                                                     <div className="flex flex-col gap-1.5 max-w-[170px] mx-auto select-none">
                                                       <button
@@ -3048,18 +3056,12 @@ export default function App() {
                                                     </div>
                                                   </td>
 
-                                                  {/* Status Indicator (Col S) */}
-                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 text-center align-middle select-none">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                                      enq.status === "Responded"
-                                                        ? "bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-250 shadow-3xs"
-                                                        : "bg-amber-100 text-amber-805 border border-amber-250"
-                                                    }`}>
-                                                      {enq.status}
-                                                    </span>
+                                                  {/* Supplier Remarks (Col T) */}
+                                                  <td rowSpan={numItems} className="p-3 border-r border-slate-200 align-middle bg-slate-50/10 truncate max-w-[130px] font-sans text-slate-500 italic text-[11px]" title={enq.supplierResponse?.remark}>
+                                                    {enq.supplierResponse?.remark || "-"}
                                                   </td>
 
-                                                  {/* Ref ID (Col T) */}
+                                                  {/* Ref ID (Col U) */}
                                                   <td rowSpan={numItems} className="p-3 border-r-0 text-left font-mono font-bold text-slate-500 text-[10px] align-middle select-all">
                                                     {enq.id}
                                                   </td>
