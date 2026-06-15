@@ -2031,7 +2031,7 @@ export default function App() {
 
 
             {/* TAB 2: LIVE GOOGLE SHEETS SIMULATOR */}
-            {activeTab === "sheets_simulator" && (
+            {activeTab === "sheets_simulator" && !supplierPortalEnquiryId && (
               <motion.div
                 key="sheets_simulator"
                 initial={{ opacity: 0, y: 10 }}
@@ -3092,7 +3092,7 @@ export default function App() {
             )}
 
             {/* TAB 3: SIMULATED EMAIL OUTBOX MONITOR */}
-            {activeTab === "emails_outbox" && (
+            {activeTab === "emails_outbox" && !supplierPortalEnquiryId && (
               <motion.div
                 key="emails_outbox"
                 initial={{ opacity: 0, y: 10 }}
@@ -3272,7 +3272,7 @@ export default function App() {
             )}
 
             {/* TAB 4: GOOGLE DRIVE STORAGE SIMULATOR */}
-            {activeTab === "drive_simulator" && (
+            {activeTab === "drive_simulator" && !supplierPortalEnquiryId && (
               <motion.div
                 key="drive_simulator"
                 initial={{ opacity: 0, y: 10 }}
@@ -3442,7 +3442,7 @@ export default function App() {
             <a href="#" onClick={(e) => { e.preventDefault(); }} className="hover:underline">Privacy Policy</a>
           </div>
 
-          {!showAdminConsole && (
+          {!showAdminConsole && !supplierPortalEnquiryId && (
             <div className="pt-2 border-t border-slate-200/50 flex justify-center items-center">
               <button
                 type="button"
@@ -3567,6 +3567,36 @@ export default function App() {
                       <span className="text-sm shrink-0">💻</span>
                       <span className="truncate flex-1">Compose on Web Gmail</span>
                     </a>
+
+                    {/* Copy Rich HTML Email (with Button!) */}
+                    <button
+                      onClick={() => {
+                        const htmlContent = getClientEnquiryEmailHTML(lastSubmittedEnquiry);
+                        const plainText = `Dear Tracy / Team,\n\nWe have registered a new Order Enquiry (ID: ${lastSubmittedEnquiry.id}) for Style Reference: ${lastSubmittedEnquiry.styleNumber}.\n\nPlease click the link below to submit pricing details:\n\n👉 SECURE QUOTATION PORTAL:\n${lastSubmittedLink}\n\nBest regards,\nGinza Limited Merchant Division\n`;
+                        
+                        try {
+                          const blobHtml = new Blob([htmlContent], { type: "text/html" });
+                          const blobText = new Blob([plainText], { type: "text/plain" });
+                          const data = [new ClipboardItem({
+                            "text/html": blobHtml,
+                            "text/plain": blobText,
+                          })];
+                          navigator.clipboard.write(data).then(() => {
+                            alert("Success! A beautifully formatted email template with a styled CTA response button has been copied to your clipboard. You can now open your email app (Gmail, Outlook) and press Paste (Ctrl+V / Cmd+V) to draft the direct-click button email instantly!");
+                          }).catch((e) => {
+                            navigator.clipboard.writeText(lastSubmittedLink);
+                            alert("Quotation link copied to clipboard!");
+                          });
+                        } catch (err) {
+                          navigator.clipboard.writeText(lastSubmittedLink);
+                          alert("Quotation link copied to clipboard!");
+                        }
+                      }}
+                      className="flex items-center gap-2 justify-center p-3 border border-emerald-250 bg-emerald-50 hover:bg-emerald-100 rounded-xl text-xs font-bold text-emerald-800 shadow-3xs transition-all cursor-pointer text-center sm:col-span-2 active:scale-97"
+                    >
+                      <span>📋</span>
+                      <span>Copy Rich Email with Clickable Button (Recommended)</span>
+                    </button>
                   </div>
                 </div>
 
