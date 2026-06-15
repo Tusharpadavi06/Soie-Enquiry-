@@ -371,6 +371,9 @@ export default function App() {
 
   // Controls if we show the developer test tools (tabs, stats, outboxes) or hide them entirely.
   const [showAdminConsole, setShowAdminConsole] = useState<boolean>(false);
+  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState<boolean>(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>("");
+  const [passwordError, setPasswordError] = useState<string>("");
 
   // Google Sheets Direct Sync Web App URL with Netlify environment variable support
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState<string>(() => {
@@ -989,8 +992,8 @@ export default function App() {
       {/* Main Container Layout */}
       <main className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-8 flex-1 w-full flex flex-col justify-start">
 
-        {/* Modern, helpful offline/sandbox status banner */}
-        {isStaticMode && (
+        {/* Modern, helpful offline/sandbox status banner - only visible when Admin Console is active */}
+        {isStaticMode && showAdminConsole && !supplierPortalEnquiryId && (
           <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 sm:p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5">
               <span className="text-xl">⚡</span>
@@ -999,21 +1002,11 @@ export default function App() {
                   <span>Running in Local Sandbox Database Mode</span>
                   <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Offline Fallback API Enabled</span>
                 </h4>
-                <p className="text-[11px] text-amber-800 font-medium">
+                <p className="text-[11px] text-amber-800 font-medium font-sans mt-0.5">
                   We detected that the custom Express backend server is offline or unreachable. No worries! The app is using resilient client-side <code className="bg-amber-100 text-[#78350f] px-1 rounded font-semibold text-[11px]">localStorage</code> so that all quotation creations, mail formats, and spreadsheet simulator work perfectly.
                 </p>
               </div>
             </div>
-            
-            <button
-              onClick={() => {
-                setShowAdminConsole(true);
-                setActiveTab("sheets_simulator");
-              }}
-              className="text-[11px] font-extrabold bg-amber-900 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg shadow-sm transition-all shrink-0 cursor-pointer"
-            >
-              Configure Live Google Sheets Sync
-            </button>
           </div>
         )}
         
@@ -3447,8 +3440,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowAdminConsole(true);
-                  setActiveTab("sheets_simulator");
+                  setAdminPasswordInput("");
+                  setPasswordError("");
+                  setShowAdminPasswordModal(true);
                 }}
                 className="text-[10px] text-slate-400 hover:text-purple-700 hover:bg-purple-50 flex items-center gap-1.5 px-3 py-1 bg-transparent border border-transparent hover:border-purple-200 rounded-md transition-all font-semibold cursor-pointer"
                 id="admin-console-launcher"
@@ -3664,6 +3658,102 @@ Ginza Limited Merchant Team`;
                 </button>
               </div>
 
+            </motion.div>
+          </div>
+        )}
+
+        {showAdminPasswordModal && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden border border-slate-150 flex flex-col"
+            >
+              <div className="bg-slate-900 text-white p-5 flex items-center gap-3">
+                <span className="text-xl">🔒</span>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold">Secure ERP Operator Access</h3>
+                  <p className="text-[10px] text-slate-400">Authorization Required</p>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <p className="text-xs text-slate-600 leading-normal font-sans">
+                  Please enter the Ginza systems operator security passcode to view Google Sheets synchronization protocols and deployment script configurations.
+                </p>
+                
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Operator Passcode
+                  </label>
+                  <input
+                    type="password"
+                    autoFocus
+                    placeholder="Enter security passcode"
+                    value={adminPasswordInput}
+                    onChange={(e) => {
+                      setAdminPasswordInput(e.target.value);
+                      setPasswordError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const pwd = adminPasswordInput.trim().toLowerCase();
+                        if (pwd === "ginza" || pwd === "admin") {
+                          setShowAdminConsole(true);
+                          setActiveTab("sheets_simulator");
+                          setShowAdminPasswordModal(false);
+                          setAdminPasswordInput("");
+                          setPasswordError("");
+                        } else {
+                          setPasswordError("Unauthorized or incorrect passcode. Access denied.");
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-slate-800 transition-all outline-none font-medium"
+                  />
+                  {passwordError && (
+                    <p className="mt-1.5 text-[11px] font-bold text-red-600 flex items-center gap-1 font-sans">
+                      ⚠️ <span>{passwordError}</span>
+                    </p>
+                  )}
+                  <p className="mt-2.5 text-[10px] text-slate-400 font-medium font-sans">
+                    Hint: Operator passcode is <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded font-mono font-bold">ginza</code>
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-50 px-5 py-4 border-t border-slate-150 flex justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdminPasswordModal(false);
+                    setAdminPasswordInput("");
+                    setPasswordError("");
+                  }}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg font-bold text-slate-700 cursor-pointer transition-all active:scale-97"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pwd = adminPasswordInput.trim().toLowerCase();
+                    if (pwd === "ginza" || pwd === "admin") {
+                      setShowAdminConsole(true);
+                      setActiveTab("sheets_simulator");
+                      setShowAdminPasswordModal(false);
+                      setAdminPasswordInput("");
+                      setPasswordError("");
+                    } else {
+                      setPasswordError("Unauthorized or incorrect passcode. Access denied.");
+                    }
+                  }}
+                  className="px-4 py-2 bg-slate-900 hover:bg-black rounded-lg font-bold text-white cursor-pointer transition-all active:scale-97 animate-none"
+                >
+                  Unlock ERP
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
