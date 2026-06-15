@@ -175,7 +175,7 @@ function getClientEnquiryEmailHTML(enquiry: Enquiry) {
 
       <div class="action-box">
         <div class="action-text">Click here to open the secure supplier portal:</div>
-        <a href="${enquiry.supplierResponseLink}" class="btn">Submit Quotation Updates</a>
+        <a href="${window.location.origin}/?portal=supplier&id=${enquiry.id}" class="btn">Submit Quotation Updates</a>
       </div>
 
       <div class="details-row">
@@ -336,15 +336,24 @@ function getClientSupplierReplyEmailHTML(enquiry: Enquiry, response: SupplierRes
 async function syncClientToGoogleSheets(enquiry: Enquiry, webAppUrl: string) {
   if (!webAppUrl) return;
   try {
-    console.log("[Static Sheet Sync] Initiating nested payload direct sync...");
+    console.log("[Static Sheet Sync] Initiating nested representation with flat fallbacks sync...");
     
-    // We send the entire enquiry object to the Google Apps Script. 
-    // The Apps Script handles row splitting, formatting, and cell coordinates mapping perfectly.
+    const firstItem = enquiry.items && enquiry.items.length > 0 ? enquiry.items[0] : null;
+    const sheetsPayload = {
+      ...enquiry,
+      // Root-level fallbacks if they are running an older Google Apps Script
+      color: firstItem ? firstItem.color : "",
+      quantity: firstItem ? firstItem.quantity : "",
+      size: firstItem ? firstItem.size : "",
+      styleNo: firstItem ? firstItem.styleNo : enquiry.styleNumber
+    };
+
+    // We send the formatted enquiry object to the Google Apps Script. 
     await fetch(webAppUrl, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(enquiry)
+      body: JSON.stringify(sheetsPayload)
     });
     console.log("[Static Sheet Sync] Sync successful!");
   } catch (err) {
@@ -353,6 +362,10 @@ async function syncClientToGoogleSheets(enquiry: Enquiry, webAppUrl: string) {
 }
 
 export default function App() {
+  const getNormalizedResponseLink = (enqId: string) => {
+    return `${window.location.origin}/?portal=supplier&id=${enqId}`;
+  };
+
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<"enquiry_form" | "sheets_simulator" | "emails_outbox" | "drive_simulator">("enquiry_form");
 
@@ -377,9 +390,11 @@ export default function App() {
 
   // Supplier portal selection state (to let users simulate being a supplier quickly)
   const [supplierPortalEnquiryId, setSupplierPortalEnquiryId] = useState<string | null>(null);
+  const [supplierSuccessState, setSupplierSuccessState] = useState<boolean>(false);
 
   // Success share modal state after sub-enquiry creation
   const [lastSubmittedEnquiry, setLastSubmittedEnquiry] = useState<Enquiry | null>(null);
+  const lastSubmittedLink = lastSubmittedEnquiry ? getNormalizedResponseLink(lastSubmittedEnquiry.id) : "";
 
   // Form inputs for Order Enquiry
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -407,10 +422,10 @@ export default function App() {
 
   // Supplier Response Form state
   const [supplierComposition, setSupplierComposition] = useState<string>("");
-  const [supplierMOQ, setSupplierMOQ] = useState<number>(1000);
-  const [supplierMCQ, setSupplierMCQ] = useState<number>(500);
-  const [supplierPrice, setSupplierPrice] = useState<number>(175);
-  const [supplierDelivery, setSupplierDelivery] = useState<string>("2026-08-15");
+  const [supplierMOQ, setSupplierMOQ] = useState<number | "">("");
+  const [supplierMCQ, setSupplierMCQ] = useState<number | "">("");
+  const [supplierPrice, setSupplierPrice] = useState<number | "">("");
+  const [supplierDelivery, setSupplierDelivery] = useState<string>("");
   const [supplierRemark, setSupplierRemark] = useState<string>("");
   const [supplierVerifyStyle, setSupplierVerifyStyle] = useState<string>("");
 
@@ -467,8 +482,12 @@ export default function App() {
         throw new Error("Returned HTML instead of JSON. Frontend router fallback typical of missing backend servers.");
       }
 
-      const subEnquiries = await enqRes.json();
-      setEnquiries(subEnquiries);
+      const subEnquiries: Enquiry[] = await enqRes.json();
+      const normalizedSubEnquiries = subEnquiries.map((enq) => ({
+        ...enq,
+        supplierResponseLink: `${window.location.origin}/?portal=supplier&id=${enq.id}`
+      }));
+      setEnquiries(normalizedSubEnquiries);
 
       const emailRes = await fetch("/api/emails");
       const emailLogs = await emailRes.json();
@@ -477,9 +496,28 @@ export default function App() {
       try {
         const configRes = await fetch("/api/sheets-config");
         const config = await configRes.json();
-        setGoogleSheetsUrl(config.webAppUrl || "");
+        if (config.webAppUrl) {
+          setGoogleSheetsUrl(config.webAppUrl);
+          localStorage.setItem("soie_sheets_url", config.webAppUrl);
+        } else {
+          const storedUrl = localStorage.getItem("soie_sheets_url");
+          if (storedUrl) {
+            setGoogleSheetsUrl(storedUrl);
+            await fetch("/api/sheets-config", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ webAppUrl: storedUrl.trim() })
+            });
+          } else {
+            setGoogleSheetsUrl("");
+          }
+        }
       } catch (err) {
         console.warn("Could not load Google Sheets configuration from server.", err);
+        const storedUrl = localStorage.getItem("soie_sheets_url");
+        if (storedUrl) {
+          setGoogleSheetsUrl(storedUrl);
+        }
       }
 
       setErrorMessage("");
@@ -500,7 +538,11 @@ export default function App() {
       } else {
         localStorage.setItem("soie_enquiries", JSON.stringify(initialDefaultEnquiries));
       }
-      setEnquiries(currentEnquiries);
+      const normalizedCurrentEnquiries = currentEnquiries.map((enq) => ({
+        ...enq,
+        supplierResponseLink: `${window.location.origin}/?portal=supplier&id=${enq.id}`
+      }));
+      setEnquiries(normalizedCurrentEnquiries);
 
       // Load email logs from browser local storage
       const savedEmails = localStorage.getItem("soie_emails");
@@ -578,11 +620,11 @@ export default function App() {
       const target = enquiries.find(e => e.id === supplierPortalEnquiryId);
       if (target) {
         setSupplierVerifyStyle(target.styleNumber);
-        setSupplierComposition(target.supplierResponse?.composition || "90% Polyamide, 10% Elastane");
-        setSupplierMOQ(target.supplierResponse?.moq || 1000);
-        setSupplierMCQ(target.supplierResponse?.mcq || 500);
-        setSupplierPrice(target.supplierResponse?.price || 180);
-        setSupplierDelivery(target.supplierResponse?.deliveryTime || "2026-08-30");
+        setSupplierComposition(target.supplierResponse?.composition || "");
+        setSupplierMOQ(target.supplierResponse?.moq ?? "");
+        setSupplierMCQ(target.supplierResponse?.mcq ?? "");
+        setSupplierPrice(target.supplierResponse?.price ?? "");
+        setSupplierDelivery(target.supplierResponse?.deliveryTime || "");
         setSupplierRemark(target.supplierResponse?.remark || "");
       }
     }
@@ -674,12 +716,22 @@ export default function App() {
     
     let finalItems = [...items];
     if (finalItems.length === 0) {
-      finalItems = [{
-        styleNo: finalStyleValue + "-Pink",
-        color: "Blush Pink",
-        quantity: 1000,
-        size: "Medium"
-      }];
+      // Auto-capture whatever is typed in single inputs if the user forgot to hit "Add Item to List" button!
+      if (newItemColor.trim() || newItemSize.trim() || newItemQuantity) {
+        finalItems = [{
+          styleNo: newItemStyleNo.trim() || (finalStyleValue + "-01"),
+          color: newItemColor.trim() || "N/A",
+          quantity: Number(newItemQuantity) || 1200,
+          size: newItemSize.trim() || "Standard"
+        }];
+      } else {
+        finalItems = [{
+          styleNo: finalStyleValue + "-Pink",
+          color: "Blush Pink",
+          quantity: 1000,
+          size: "Medium"
+        }];
+      }
     }
 
     if (!typeOfEnquiry) {
@@ -760,7 +812,7 @@ export default function App() {
         syncClientToGoogleSheets(finalEnquiry, googleSheetsUrl);
       }
 
-      setActiveTab("emails_outbox");
+      // Keep active tab as enquiry_form so the user can see the "Compose on Mail" dialog directly!
       resetToBlankForm(true);
       return;
     }
@@ -807,8 +859,7 @@ export default function App() {
       // Set for share modal
       setLastSubmittedEnquiry(result.enquiry);
 
-      // Route the view to Email Outbox immediately so the user can verify
-      setActiveTab("emails_outbox");
+      // Keep active tab as enquiry_form so the user can see the "Compose on Mail" dialog directly!
       
       // Reset form variables and turn off edit mode
       resetToBlankForm(true);
@@ -872,12 +923,8 @@ export default function App() {
         syncClientToGoogleSheets(updatedEnquiry, googleSheetsUrl);
       }
 
-      alert(`Success! Quotation has been recorded. Excel Sheet columns updated and notifications sent to Tracy + Employee CC successfully.`);
-      
-      // Direct user back to sheets simulator to see the columns updated
-      setSupplierPortalEnquiryId(null);
-      setActiveTab("sheets_simulator");
-      setActiveSheetTab(updatedEnquiry.routingTab); // view target sheet
+      // Toggle supplier success view
+      setSupplierSuccessState(true);
       return;
     }
 
@@ -908,12 +955,8 @@ export default function App() {
       setEmails([result.emailSent, ...emails]);
       setSelectedEmailId(result.emailSent.id);
 
-      alert(`Success! Quotation has been recorded. Excel Sheet columns updated and notifications sent to Tracy + Employee CC successfully.`);
-      
-      // Direct user back to sheets simulator to see the columns updated
-      setSupplierPortalEnquiryId(null);
-      setActiveTab("sheets_simulator");
-      setActiveSheetTab(result.enquiry.routingTab); // view target sheet
+      // Toggle supplier success view
+      setSupplierSuccessState(true);
     } catch (err) {
       console.error(err);
       alert("Error submitting supply quotation.");
@@ -1129,7 +1172,44 @@ export default function App() {
                     </div>
 
                     {/* Form B Body */}
-                    <form onSubmit={handleSubmitSupplierQuotation} className="space-y-4">
+                    {supplierSuccessState ? (
+                      <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm text-center py-10 space-y-4">
+                        <div className="mx-auto bg-emerald-100 text-emerald-800 border border-emerald-250 rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold shadow-xs">
+                          ✓
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800">Quotation Submitted Successfully!</h3>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          The response details have been written directly to Ginza Limited's active Google Excel sheet. Notifications have been dispatched to Tracy and the Merchandising team.
+                        </p>
+                        <div className="bg-slate-50 rounded-lg p-5 border border-slate-100 text-left text-xs max-w-md mx-auto space-y-2.5 font-medium text-slate-700">
+                          <p className="border-b pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Summary of Saved Response Fields</p>
+                          <p><b>Fabric Composition:</b> {supplierComposition || "N/A"}</p>
+                          <p><b>Minimum Order Qty (MOQ):</b> {supplierMOQ?.toLocaleString() || "0"} pcs</p>
+                          <p><b>Minimum Color Qty (MCQ):</b> {supplierMCQ?.toLocaleString() || "0"} pcs</p>
+                          <p><b>Quoted Unit Price:</b> ₹ {Number(supplierPrice).toFixed(2)}</p>
+                          <p><b>Expected Delivery Date:</b> {supplierDelivery || "N/A"}</p>
+                          {supplierVerifyStyle && <p><b>Style Verification:</b> Confirmed ({supplierVerifyStyle})</p>}
+                          {supplierRemark && <p><b>Supplier Remarks:</b> "{supplierRemark}"</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSupplierSuccessState(false);
+                            setSupplierPortalEnquiryId(null);
+                            // Only return to main enquiry form if they are not the admin
+                            if (!showAdminConsole) {
+                              setActiveTab("enquiry_form");
+                            } else {
+                              setActiveTab("sheets_simulator");
+                            }
+                          }}
+                          className="mt-6 px-4 py-[#0f9d58] bg-[#0f9d58] hover:bg-[#0b8043] text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer py-2 px-6"
+                        >
+                          Close Portal Response Panel
+                        </button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSubmitSupplierQuotation} className="space-y-4">
                       
                       {/* Read-only details from Enquiry */}
                       <div className="bg-white rounded-lg border border-[#dadce0] p-6 shadow-sm">
@@ -1213,7 +1293,7 @@ export default function App() {
                           placeholder="Your response"
                           min="1"
                           value={supplierMOQ || ""}
-                          onChange={(e) => setSupplierMOQ(Number(e.target.value))}
+                          onChange={(e) => setSupplierMOQ(e.target.value === "" ? "" : Number(e.target.value))}
                           className="w-full max-w-xs py-2 border-b border-[#dadce0] hover:border-[#b0b3b8] focus:border-b-2 focus:border-[#0f9d58] rounded-none text-sm outline-none transition-all"
                         />
                       </div>
@@ -1231,7 +1311,7 @@ export default function App() {
                           placeholder="Your response"
                           min="1"
                           value={supplierMCQ || ""}
-                          onChange={(e) => setSupplierMCQ(Number(e.target.value))}
+                          onChange={(e) => setSupplierMCQ(e.target.value === "" ? "" : Number(e.target.value))}
                           className="w-full max-w-xs py-2 border-b border-[#dadce0] hover:border-[#b0b3b8] focus:border-b-2 focus:border-[#0f9d58] rounded-none text-sm outline-none transition-all"
                         />
                       </div>
@@ -1252,7 +1332,7 @@ export default function App() {
                             min="0.01"
                             step="0.01"
                             value={supplierPrice || ""}
-                            onChange={(e) => setSupplierPrice(Number(e.target.value))}
+                            onChange={(e) => setSupplierPrice(e.target.value === "" ? "" : Number(e.target.value))}
                             className="w-full py-2 rounded-none text-sm outline-none bg-transparent font-medium"
                           />
                         </div>
@@ -1306,6 +1386,7 @@ export default function App() {
                       </div>
 
                     </form>
+                    )}
                   </motion.div>
                 );
               })()
@@ -2046,13 +2127,14 @@ export default function App() {
                                   }, 250);
                                   return;
                                 }
-                                try {
+                                 try {
                                   const res = await fetch("/api/sheets-config", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
                                     body: JSON.stringify({ webAppUrl: googleSheetsUrl.trim() })
                                   });
                                   const ans = await res.json();
+                                  localStorage.setItem("soie_sheets_url", googleSheetsUrl.trim());
                                   alert("Success! Google Sheets Web App configuration URL updated on server.");
                                 } catch (e) {
                                   alert("Error saving configuration URL to backend.");
@@ -2085,6 +2167,7 @@ export default function App() {
                                       headers: { "Content-Type": "application/json" },
                                       body: JSON.stringify({ webAppUrl: "" })
                                     });
+                                    localStorage.removeItem("soie_sheets_url");
                                     setGoogleSheetsUrl("");
                                     alert("Google Sheets configuration cleared. ERP returned to in-memory local simulator mode.");
                                   } catch (e) {
@@ -2167,8 +2250,19 @@ export default function App() {
     var rowIdx = -1;
     var existingNumRows = 1;
     
+    // Find the Ref ID column index dynamically by scanning the header row (row 1)
+    var refColIdx = 19; // Default Col T is the 20th column (index 19)
+    if (data.length > 0) {
+      for (var col = 0; col < data[0].length; col++) {
+        if (data[0][col] === "Ref ID" || data[0][col] === "ID" || data[0][col] === "Reference ID") {
+          refColIdx = col;
+          break;
+        }
+      }
+    }
+    
     for (var i = 1; i < data.length; i++) {
-      if (data[i][19] === refId) { // Column T is the 20th column
+      if (data[i][refColIdx] === refId) {
         rowIdx = i + 1; // 1-based Row Index
         break;
       }
@@ -2176,7 +2270,7 @@ export default function App() {
     
     if (rowIdx !== -1) {
       // Find out if it has merged rows starting here
-      var checkRange = sheet.getRange(rowIdx, 20);
+      var checkRange = sheet.getRange(rowIdx, refColIdx + 1);
       if (checkRange.isPartOfMerge()) {
         var mergedRanges = checkRange.getMergedRanges();
         if (mergedRanges && mergedRanges.length > 0) {
@@ -2192,15 +2286,28 @@ export default function App() {
     
     // Consolidate row parameter lists
     var items = json.items || [];
+    
+    // Fallback if no items array is present (supports older formats!)
+    if (items.length === 0) {
+      items = [{
+        styleNo: json.styleNo || json.styleNumber || "",
+        color: json.color || json.colorVal || "",
+        quantity: json.quantity || json.qtyVal || "",
+        size: json.size || json.sizeVal || ""
+      }];
+    }
+    
     var numItems = Math.max(1, items.length);
     var rowsToWrite = [];
     var attachments = json.attachments ? json.attachments.map(function(att) { return att.name + " (" + att.url + ")"; }).join(" | ") : "";
     
     for (var k = 0; k < numItems; k++) {
       var item = items[k] || {};
-      var colorVal = item.color || "";
-      var qtyVal = item.quantity || "";
-      var sizeVal = item.size || "";
+      
+      var styleNoVal = item.styleNo || item.styleNumber || item.StyleNo || item.StyleNumber || json.styleNo || json.styleNumber || "";
+      var colorVal = item.color || item.Color || json.color || "";
+      var qtyVal = item.quantity || item.Quantity || json.quantity || "";
+      var sizeVal = item.size || item.Size || json.size || "";
       
       var rowData = [
         json.date || new Date().toISOString().split("T")[0],
@@ -2208,11 +2315,11 @@ export default function App() {
         json.type || "",
         json.supplierName || "",
         json.customerName || "",
-        json.styleNumber || "",
+        styleNoVal, // Col F
         json.description || "",
-        colorVal,
-        qtyVal,
-        sizeVal,
+        colorVal, // Col H
+        qtyVal, // Col I
+        sizeVal, // Col J
         attachments,
         json.remark || "",
         json.supplierResponse ? (json.supplierResponse.composition || "") : "",
@@ -2241,7 +2348,7 @@ export default function App() {
     if (numItems > 1) {
       for (var col = 1; col <= 20; col++) {
         if (col === 8 || col === 9 || col === 10) {
-          continue;
+          continue; // Keep color, quantity, and size separated
         }
         sheet.getRange(rowIdx, col, numItems, 1).merge();
       }
@@ -2308,8 +2415,19 @@ export default function App() {
     var rowIdx = -1;
     var existingNumRows = 1;
     
+    // Find the Ref ID column index dynamically by scanning the header row (row 1)
+    var refColIdx = 19; // Default Col T is the 20th column (index 19)
+    if (data.length > 0) {
+      for (var col = 0; col < data[0].length; col++) {
+        if (data[0][col] === "Ref ID" || data[0][col] === "ID" || data[0][col] === "Reference ID") {
+          refColIdx = col;
+          break;
+        }
+      }
+    }
+    
     for (var i = 1; i < data.length; i++) {
-      if (data[i][19] === refId) { // Column T is the 20th column
+      if (data[i][refColIdx] === refId) {
         rowIdx = i + 1; // 1-based Row Index
         break;
       }
@@ -2317,7 +2435,7 @@ export default function App() {
     
     if (rowIdx !== -1) {
       // Find out if it has merged rows starting here
-      var checkRange = sheet.getRange(rowIdx, 20);
+      var checkRange = sheet.getRange(rowIdx, refColIdx + 1);
       if (checkRange.isPartOfMerge()) {
         var mergedRanges = checkRange.getMergedRanges();
         if (mergedRanges && mergedRanges.length > 0) {
@@ -2333,15 +2451,28 @@ export default function App() {
     
     // Consolidate row parameter lists
     var items = json.items || [];
+    
+    // Fallback if no items array is present (supports older formats!)
+    if (items.length === 0) {
+      items = [{
+        styleNo: json.styleNo || json.styleNumber || "",
+        color: json.color || json.colorVal || "",
+        quantity: json.quantity || json.qtyVal || "",
+        size: json.size || json.sizeVal || ""
+      }];
+    }
+    
     var numItems = Math.max(1, items.length);
     var rowsToWrite = [];
     var attachments = json.attachments ? json.attachments.map(function(att) { return att.name + " (" + att.url + ")"; }).join(" | ") : "";
     
     for (var k = 0; k < numItems; k++) {
       var item = items[k] || {};
-      var colorVal = item.color || "";
-      var qtyVal = item.quantity || "";
-      var sizeVal = item.size || "";
+      
+      var styleNoVal = item.styleNo || item.styleNumber || item.StyleNo || item.StyleNumber || json.styleNo || json.styleNumber || "";
+      var colorVal = item.color || item.Color || json.color || "";
+      var qtyVal = item.quantity || item.Quantity || json.quantity || "";
+      var sizeVal = item.size || item.Size || json.size || "";
       
       var rowData = [
         json.date || new Date().toISOString().split("T")[0],
@@ -2349,11 +2480,11 @@ export default function App() {
         json.type || "",
         json.supplierName || "",
         json.customerName || "",
-        json.styleNumber || "",
+        styleNoVal, // Col F
         json.description || "",
-        colorVal,
-        qtyVal,
-        sizeVal,
+        colorVal, // Col H
+        qtyVal, // Col I
+        sizeVal, // Col J
         attachments,
         json.remark || "",
         json.supplierResponse ? (json.supplierResponse.composition || "") : "",
@@ -2382,7 +2513,7 @@ export default function App() {
     if (numItems > 1) {
       for (var col = 1; col <= 20; col++) {
         if (col === 8 || col === 9 || col === 10) {
-          continue;
+          continue; // Keep color, quantity, and size separated
         }
         sheet.getRange(rowIdx, col, numItems, 1).merge();
       }
@@ -2528,7 +2659,7 @@ export default function App() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-verify">
-                                    Verify Style Number (Optional)
+                                    Style Number 
                                   </label>
                                   <input
                                     type="text"
@@ -2542,7 +2673,7 @@ export default function App() {
 
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-comp">
-                                    Fabric Composition (Optional)
+                                    Fabric Composition
                                   </label>
                                   <input
                                     type="text"
@@ -2556,49 +2687,49 @@ export default function App() {
 
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-moq">
-                                    Minimum Order Quantity (MOQ) (Optional)
+                                    MOQ
                                   </label>
                                   <input
                                     type="number"
                                     id="sub-moq"
                                     placeholder="Zero or any quantity"
                                     value={supplierMOQ || ""}
-                                    onChange={(e) => setSupplierMOQ(Number(e.target.value))}
+                                    onChange={(e) => setSupplierMOQ(e.target.value === "" ? "" : Number(e.target.value))}
                                     className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-teal-400"
                                   />
                                 </div>
 
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-mcq">
-                                    Minimum Color Quantity (MCQ) (Optional)
+                                    MCQ
                                   </label>
                                   <input
                                     type="number"
                                     id="sub-mcq"
                                     placeholder="Zero or any color quantity"
                                     value={supplierMCQ || ""}
-                                    onChange={(e) => setSupplierMCQ(Number(e.target.value))}
+                                    onChange={(e) => setSupplierMCQ(e.target.value === "" ? "" : Number(e.target.value))}
                                     className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-teal-400"
                                   />
                                 </div>
 
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-price">
-                                    Quoted Unit Price (INR) (Optional)
+                                    Price (INR)
                                   </label>
                                   <input
                                     type="number"
                                     id="sub-price"
                                     placeholder="Enter price in INR"
                                     value={supplierPrice || ""}
-                                    onChange={(e) => setSupplierPrice(Number(e.target.value))}
+                                    onChange={(e) => setSupplierPrice(e.target.value === "" ? "" : Number(e.target.value))}
                                     className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-teal-400 text-teal-800 font-bold"
                                   />
                                 </div>
 
                                 <div>
                                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-deliv">
-                                    Delivery Date / Time (Optional)
+                                    Delivery Date 
                                   </label>
                                   <input
                                     type="date"
@@ -2612,7 +2743,7 @@ export default function App() {
 
                               <div>
                                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" htmlFor="sub-remark">
-                                  Supplier Remark (Optional)
+                                  Remark
                                 </label>
                                 <textarea
                                   id="sub-remark"
@@ -2630,7 +2761,7 @@ export default function App() {
                                   className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition-all cursor-pointer shadow-md"
                                   id="supplier-submit-btn"
                                 >
-                                  Submit Quotation / Proposal State
+                                  Submit Quotation 
                                 </button>
                               </div>
 
@@ -3339,141 +3470,165 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden border border-slate-100 flex flex-col"
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 flex flex-col"
             >
               {/* Header card with emerald background */}
-              <div className="bg-emerald-600 text-white p-6 relative">
+              <div className="bg-emerald-600 text-white p-5 sm:p-6 relative">
                 <button
                   onClick={() => setLastSubmittedEnquiry(null)}
                   className="absolute top-4 right-4 text-emerald-100 hover:text-white bg-emerald-700/40 hover:bg-emerald-700/60 p-1.5 rounded-full transition-colors cursor-pointer"
                 >
                   <X className="h-4 w-4" />
                 </button>
-                <div className="bg-emerald-500 text-white rounded-full h-10 w-10 flex items-center justify-center font-bold mb-3 shadow-md">
+                <div className="bg-emerald-500 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold mb-3 shadow-md border border-emerald-400">
                   ✓
                 </div>
-                <h3 className="text-lg font-bold">Enquiry Created & Routed!</h3>
+                <h3 className="text-lg font-bold tracking-tight">Direct Database Save Completed!</h3>
                 <p className="text-xs text-emerald-100/90 mt-1">
-                  ID: <span className="font-mono font-bold">{lastSubmittedEnquiry.id}</span> | Routed to <span className="font-bold">Excel Sheet: [{lastSubmittedEnquiry.routingTab}]</span>
+                  Enquiry ID: <span className="font-mono font-bold bg-emerald-700/50 px-1.5 py-0.5 rounded text-white">{lastSubmittedEnquiry.id}</span>
                 </p>
               </div>
 
-              <div className="p-6 space-y-4 flex-1">
-                <p className="text-xs text-slate-500 leading-normal">
-                  The enquiry was processed successfully. Copy and share this unique **Supplier Pricing Response Link** directly. When Tracy or the supplier opens this link to submit details, the records will reflect instantly inside your Google Sheet!
-                </p>
+              <div className="p-5 sm:p-6 space-y-4.5 flex-1">
+                {/* Save status confirmation */}
+                <div className="bg-emerald-50/70 border border-emerald-250 rounded-xl p-3.5 flex items-start gap-2.5">
+                  <span className="text-base mt-0.5">📊</span>
+                  <div className="text-xs text-emerald-800 leading-normal">
+                    <span className="font-extrabold block mb-0.5 text-emerald-950">Saved to Google Excel Sheet:</span>
+                    Rows written to tab <b>[{lastSubmittedEnquiry.routingTab}]</b>. Individual Colors, Sizes, and Quantities mapping matches column positions (H, I, J) perfectly.
+                  </div>
+                </div>
 
-                {/* Link input with copy button */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Supplier Response Portal Link
+                {/* Secure URL portal link field */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-extrabold text-slate-550 uppercase tracking-widest">
+                    Tracy / Partner Response Portal Link
                   </label>
+                  <p className="text-[10.5px] text-slate-500 leading-tight">
+                    Tracy or the supplier can click this to respond with their composition, MOQ, MCQ, and rates. The spreadsheet will live-sync instantly!
+                  </p>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={lastSubmittedEnquiry.supplierResponseLink}
-                      className="flex-1 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none select-all text-slate-850"
+                      value={lastSubmittedLink}
+                      className="flex-1 text-xs font-mono bg-slate-50 border border-slate-205 rounded-lg p-2.5 outline-none select-all text-slate-800 font-medium"
                     />
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(lastSubmittedEnquiry.supplierResponseLink);
-                        alert("Copied Supplier Response link!");
+                        navigator.clipboard.writeText(lastSubmittedLink);
+                        alert("Quotation link copied to clipboard!");
                       }}
-                      className="px-3.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-150 border border-emerald-200 hover:border-emerald-300 rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                      className="px-3 bg-slate-100 hover:bg-slate-205 border border-slate-300 text-slate-750 rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                      title="Copy response Link"
                     >
                       <Copy className="h-3.5 w-3.5" />
-                      <span>Copy Link</span>
+                      <span>Copy</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Action Panel: real options for Gmail, WhatsApp */}
-                <div className="space-y-2">
-                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Share Link Instantly
+                {/* COMPOSE ON EMAIL ACTION AREA */}
+                <div className="space-y-2.5 border-t border-dashed border-slate-200 pt-3.5">
+                  <span className="block text-[10px] font-extrabold text-indigo-755 uppercase tracking-widest flex items-center gap-1">
+                    ✉️ Action Required: Compose Email Now
                   </span>
+                  <p className="text-[10.5px] text-slate-500 leading-tight">
+                    Please dispatch the quotation link to <b>tracychi@gmail.com</b> and original merchant employees. Choose your preferred composer below:
+                  </p>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* WhatsApp */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Direct Outlook/Native preloaded compose mailto link */}
                     <a
-                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                        `Hi Tracy,\n\nPlease fill in the quotation and price details for Style: ${lastSubmittedEnquiry.styleNumber} here:\n${lastSubmittedEnquiry.supplierResponseLink}`
-                      )}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 justify-center p-2.5 border border-emerald-200 rounded-lg hover:bg-emerald-50 text-xs font-bold text-emerald-800 transition-colors cursor-pointer"
-                    >
-                      <span className="text-base shrink-0">💬</span>
-                      <span className="truncate">Share on WhatsApp</span>
-                    </a>
-
-                    {/* Email draft */}
-                    <a
-                      href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-                        lastSubmittedEnquiry.email
-                      )}&su=${encodeURIComponent(
+                      href={`mailto:tracychi@gmail.com?cc=mis.mumbai@ginzalimited.com,${lastSubmittedEnquiry.email}&subject=${encodeURIComponent(
                         `Action Required: Submit Quote for Style ${lastSubmittedEnquiry.styleNumber} (Ref # ${lastSubmittedEnquiry.id})`
                       )}&body=${encodeURIComponent(
-                        `Dear Team,\n\nPlease click on the link below to submit pricing and quotation updates for Style Reference ${lastSubmittedEnquiry.styleNumber}:\n\n${lastSubmittedEnquiry.supplierResponseLink}\n\nBest regards,\nGinza Limited ERP System\n`
+                        `Dear Tracy / Team,\r\n\r\nWe have registered a new Order Enquiry (ID: ${lastSubmittedEnquiry.id}) in our systems for Style Reference: ${lastSubmittedEnquiry.styleNumber}.\r\n\r\nPlease click the secured link below to submit pricing, MCQ, MOQ, materials composition, and expected delivery schedule details directly into our Google Excel Sheet:\r\n\r\n👉 SECURE QUOTATION PORTAL:\r\n${lastSubmittedLink}\r\n\r\nBest regards,\r\nGinza Limited Merchant Division\r\n`
+                      )}`}
+                      className="flex items-center gap-2 justify-center p-3 border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 rounded-xl text-xs font-bold text-indigo-800 shadow-3xs transition-all cursor-pointer text-center hover:border-indigo-300 active:scale-97"
+                    >
+                      <Mail className="h-4 w-4 text-indigo-750 shrink-0" />
+                      <span className="truncate">📧 Open Outlook / Native Mail</span>
+                    </a>
+
+                    {/* Web Gmail client preloaded composition url link */}
+                    <a
+                      href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+                        "tracychi@gmail.com"
+                      )}&cc=${encodeURIComponent(`mis.mumbai@ginzalimited.com,${lastSubmittedEnquiry.email}`)}&su=${encodeURIComponent(
+                        `Action Required: Submit Quote for Style ${lastSubmittedEnquiry.styleNumber} (Ref # ${lastSubmittedEnquiry.id})`
+                      )}&body=${encodeURIComponent(
+                        `Dear Tracy / Team,\n\nWe have registered a new Order Enquiry (ID: ${lastSubmittedEnquiry.id}) in our systems for Style Reference: ${lastSubmittedEnquiry.styleNumber}.\n\nPlease click the secured link below to submit pricing, MCQ, MOQ, materials composition, and expected delivery schedule details directly into our Google Excel Sheet:\n\n👉 SECURE QUOTATION PORTAL:\n${lastSubmittedLink}\n\nBest regards,\nGinza Limited Merchant Division\n`
                       )}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-2 justify-center p-2.5 border border-sky-200 rounded-lg hover:bg-sky-50 text-xs font-bold text-sky-800 transition-colors cursor-pointer"
+                      className="flex items-center gap-2 justify-center p-3 border border-sky-200 bg-sky-50/50 hover:bg-sky-50 rounded-xl text-xs font-bold text-sky-800 shadow-3xs transition-all cursor-pointer text-center hover:border-sky-300 active:scale-97"
                     >
-                      <Mail className="h-4 w-4 text-sky-600 shrink-0" />
-                      <span className="truncate">Compose on Gmail</span>
+                      <span className="text-sm shrink-0">💻</span>
+                      <span className="truncate flex-1">Compose on Web Gmail</span>
                     </a>
                   </div>
                 </div>
 
-                {/* Copy full detailed email template text */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-                  <div className="text-[10px] text-slate-450 leading-snug">
-                    Need to email a full breakdown instead of just the link? Show full breakdown:
+                {/* Copy full detailed email template backup text block */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 wrap sm:nowrap">
+                  <div className="text-[10px] text-slate-450 leading-tight">
+                    WhatsApp alternate link or full body text:
                   </div>
-                  <button
-                    onClick={() => {
-                      const fullDetails = `Dear Supplier/Tracy,
+                  <div className="flex gap-1.5 shrink-0">
+                    <a
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                        `Dear Tracy / Team, please fill in the quotation rates for Style ${lastSubmittedEnquiry.styleNumber} here:\n${lastSubmittedLink}`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-150 py-1.5 px-3 rounded-lg hover:bg-emerald-100 cursor-pointer transition-all active:scale-95"
+                    >
+                      💬 WhatsApp
+                    </a>
+                    <button
+                      onClick={() => {
+                        const fullDetails = `Dear Supplier/Tracy,
 
-Please provide details for the new Order Enquiry on our merchant portal:
+Please provide pricing and logistics details for our new Order Enquiry:
 
 * Enquiry Ref ID: ${lastSubmittedEnquiry.id}
 * Customer: ${lastSubmittedEnquiry.customerName}
 * Style Code: ${lastSubmittedEnquiry.styleNumber}
-* Items List: ${lastSubmittedEnquiry.items.map(i => `${i.color} (${i.size}) - Qty: ${i.quantity}`).join(", ")}
+* Required items: ${lastSubmittedEnquiry.items.map(i => `${i.color} (${i.size}) - Qty: ${i.quantity} pcs`).join(", ")}
 
-Access the response portal securely using this link:
-${lastSubmittedEnquiry.supplierResponseLink}
+Access our response portal securely here to update the Excel sheet directly:
+${lastSubmittedLink}
 
 Thank you,
 Ginza Limited Merchant Team`;
 
-                      navigator.clipboard.writeText(fullDetails);
-                      alert("Success! Detailed email text copied to clipboard. Paste into your Outlook/Email client now!");
-                    }}
-                    className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 py-1.5 px-3 rounded-lg hover:bg-indigo-100 cursor-pointer transition-all active:scale-95 shrink-0 whitespace-nowrap"
-                  >
-                    📋 Copy Detailed Email Text
-                  </button>
+                        navigator.clipboard.writeText(fullDetails);
+                        alert("Full email breakdown body text copied to clipboard!");
+                      }}
+                      className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 py-1.5 px-3 rounded-lg hover:bg-indigo-100 cursor-pointer transition-all active:scale-95"
+                    >
+                      📋 Copy Full Email Text
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-2 text-xs">
+              <div className="bg-slate-50 px-5 py-4 border-t border-slate-150 flex justify-end gap-2 text-xs">
                 <button
                   type="button"
                   onClick={() => {
                     setLastSubmittedEnquiry(null);
                     setActiveTab("sheets_simulator");
                   }}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-350 hover:text-slate-900 border border-slate-300 rounded-lg font-bold text-slate-700 transition-colors cursor-pointer active:scale-95"
+                  className="px-4 py-2 bg-slate-205 border border-slate-300 rounded-lg font-bold text-slate-700 hover:bg-slate-250 cursor-pointer transition-all"
                 >
-                  Go to Excel Sheet
+                  View Sheet Simulator
                 </button>
                 <button
                   type="button"
                   onClick={() => setLastSubmittedEnquiry(null)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-black rounded-lg font-bold text-white transition-colors cursor-pointer active:scale-95"
+                  className="px-4 py-2 bg-slate-900 hover:bg-black rounded-lg font-bold text-white cursor-pointer transition-all active:scale-95"
                 >
                   Done
                 </button>

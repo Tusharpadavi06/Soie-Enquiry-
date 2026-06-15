@@ -375,12 +375,21 @@ async function syncToGoogleSheets(enquiry: Enquiry) {
       return;
     }
     
-    console.log(`Syncing enquiry ${enquiry.id} to Google Sheets as single nested payload...`);
+    console.log(`Syncing enquiry ${enquiry.id} to Google Sheets as nested representation with flat fallbacks...`);
+
+    const firstItem = enquiry.items && enquiry.items.length > 0 ? enquiry.items[0] : null;
+    const sheetsPayload = {
+      ...enquiry,
+      color: firstItem ? firstItem.color : "",
+      quantity: firstItem ? firstItem.quantity : "",
+      size: firstItem ? firstItem.size : "",
+      styleNo: firstItem ? firstItem.styleNo : enquiry.styleNumber
+    };
 
     const response = await fetch(webAppUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(enquiry)
+      body: JSON.stringify(sheetsPayload)
     });
     
     if (!response.ok) {
